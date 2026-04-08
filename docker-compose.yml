@@ -1,0 +1,88 @@
+version: '3.8'
+
+# CloudOps Ninja - Local Development Environment
+# Run with: docker-compose up -d
+# Access:
+#   - Flask App: http://localhost:5000
+#   - Prometheus: http://localhost:9090
+#   - Grafana: http://localhost:3000
+
+services:
+  # Python Flask Application
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cloudops-ninja-app
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PORT=5000
+    volumes:
+      - ./backend:/app
+    networks:
+      - cloudops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Prometheus - Metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cloudops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - cloudops-network
+    depends_on:
+      - app
+
+  # Grafana - Dashboards and visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cloudops-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    networks:
+      - cloudops-network
+    depends_on:
+      - prometheus
+
+  # Optional: AlertManager for alerts
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: cloudops-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager:/etc/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    networks:
+      - cloudops-network
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  cloudops-network:
+    driver: bridge
