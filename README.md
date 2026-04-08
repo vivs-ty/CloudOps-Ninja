@@ -1,5 +1,14 @@
 # 🥷 CloudOps Ninja - Zero to Hero DevOps/SRE Project
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/vivs-ty/CloudOps-Ninja?style=social)](https://github.com/vivs-ty/CloudOps-Ninja)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![Bash 4.0+](https://img.shields.io/badge/Bash-4.0%2B-green)](https://www.gnu.org/software/bash/)
+[![Terraform](https://img.shields.io/badge/Terraform-1.0%2B-purple)](https://www.terraform.io/)
+[![Docker](https://img.shields.io/badge/Docker-Latest-blue?logo=docker)](https://www.docker.com/)
+[![AWS](https://img.shields.io/badge/AWS-Free%20Tier-orange?logo=amazon-aws)](https://aws.amazon.com/free/)
+[![GCP](https://img.shields.io/badge/GCP-Free%20Tier-red?logo=google-cloud)](https://cloud.google.com/free)
+
 A **fun, practical project** to learn Python, Bash, Linux, AWS, GCP, and SRE concepts by building a real multi-cloud monitoring and deployment system!
 
 ## 📚 What You'll Learn
