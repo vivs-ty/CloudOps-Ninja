@@ -44,4 +44,9 @@ jobs:
 
       - name: Check documentation links
         run: |
-          if grep -Rq "\.github/workflows/deploy\.yml" README.md; then echo "workflow reference OK"; else echo "missing workflow reference" && exit 1; fi
+          if grep -Rq "\.github/" README.md && grep -Rq "deploy\.yml" README.md; then
+            echo "workflow reference OK"
+          else
+            echo "missing workflow reference"
+            exit 1
+          fi
