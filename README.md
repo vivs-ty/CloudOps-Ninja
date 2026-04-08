@@ -247,6 +247,28 @@ Each `docs/` file has:
 6. **Multi-Cloud**: `docs/GCP_GUIDE.md`
 7. **Monitor**: `docs/SRE_CONCEPTS.md`
 
+## 📚 Recommended Books & Resources
+
+Deepen your DevOps/SRE knowledge with these industry-standard books:
+
+| Status | Book | Why Read It |
+|--------|------|-----------|
+| ✅ **Completed** | **The Unicorn Project** by Gene Kim | Understanding DevOps culture & transformation |
+| ✅ **Completed** | **The Phoenix Project** by Gene Kim | Classic DevOps principles through storytelling |
+| 🔄 **Reading Now** | **The DevOps Handbook** by Gene Kim et al. | Practical DevOps patterns & practices |
+| ⏳ **To Read** | **Accelerate** by Nicole Forsgren et al. | Metrics & science behind high-performing teams |
+| ⏳ **To Read** | **Designing Data-Intensive Applications** by Martin Kleppmann | Understanding databases & distributed systems |
+| ⏳ **To Read** | **Database Internals** by Alex Petrov | Deep dive into database architecture |
+| ⏳ **To Read** | **Site Reliability Engineering** by Google | SRE principles & practices (free online) |
+| ⏳ **To Read** | **The Site Reliability Workbook** by Google | SRE practical exercises & case studies |
+| ⏳ **To Read** | **Building Secure & Reliable Systems** by Google | Security + reliability combined |
+
+**Free Resources:**
+- 🌐 [Google SRE Book](https://sre.google/books/) - Available online
+- 📖 [Terraform Documentation](https://www.terraform.io/docs)
+- 📖 [AWS Documentation](https://docs.aws.amazon.com/)
+- 📖 [Google Cloud Documentation](https://cloud.google.com/docs)
+
 ## 🎮 Gamification
 
 - **Badges**: Unlock SRE badges as you complete milestones
