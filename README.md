@@ -112,13 +112,18 @@ CloudOps-Ninja/
 │   │   └── incident_response.py
 │   └── docker-compose.yml     # Local monitoring stack
 │
+├── projects/                  # 🆕 Hands-on learning projects
+│   ├── README.md              # 9 progressive projects
+│   ├── CLOUD_ARCHITECTURE.md  # Architecture fundamentals
+│   └── [project folders]      # Implementation examples
+│
 ├── docs/                      # Learning documentation
 │   ├── LEARNING_PATH.md       # Step-by-step guide
 │   ├── LINUX_BASICS.md        # Linux commands cheatsheet
 │   ├── BASH_GUIDE.md          # Bash scripting guide
 │   ├── PYTHON_GUIDE.md        # Python learning path
 │   ├── AWS_GUIDE.md           # AWS setup guide
-│   ├── GCP_GUIDE.md           # GCP setup guide
+│   ├── GCP_GUIDE.md           # 🆕 GCP Zero to Hero
 │   ├── SRE_CONCEPTS.md        # SRE fundamentals
 │   └── TROUBLESHOOTING.md     # Common issues & fixes
 │
@@ -247,7 +252,34 @@ Each `docs/` file has:
 6. **Multi-Cloud**: `docs/GCP_GUIDE.md`
 7. **Monitor**: `docs/SRE_CONCEPTS.md`
 
-## 📚 Recommended Books & Resources
+## � Hands-On Projects & Cloud Architecture
+
+### 🎯 9 Progressive Learning Projects
+Master practical skills through **[hands-on projects](projects/README.md)** at increasing difficulty:
+
+| # | Project | Level | Time | Focus |
+|---|---------|-------|------|-------|
+| 1 | Hello World Deployment | ⭐ | 2h | Deploy to AWS and GCP |
+| 2 | Multi-Region Awareness | ⭐⭐ | 4h | Load balancing, health checks |
+| 3 | Monitoring & Alerts | ⭐⭐ | 3h | Prometheus and Grafana |
+| 4 | Auto-Scaling | ⭐⭐⭐ | 4-5h | Load testing and scaling policies |
+| 5 | Database Integration | ⭐⭐ | 3h | RDS and Cloud SQL |
+| 6 | CI/CD Pipeline | ⭐⭐⭐ | 5-6h | GitHub Actions workflow |
+| 7 | Multi-Cloud Replication | ⭐⭐⭐ | 5-6h | Database replication |
+| 8 | Disaster Recovery | ⭐⭐⭐⭐ | 6-8h | RTO/RPO and failover |
+| 9 | Chaos Engineering | ⭐⭐⭐⭐ | 4-5h | Resilience testing |
+
+### 🏗️ Cloud Architecture Fundamentals
+Learn **[architecture patterns](projects/CLOUD_ARCHITECTURE.md)** and design principles:
+- **4 Architecture Levels**: Single instance → Multi-instance → Multi-region → Microservices
+- **Key Patterns**: Web applications, microservices, serverless, event-driven
+- **High Availability**: Achieving 99.9% to 99.99% uptime
+- **Cost Optimization**: Right-sizing, reserved instances, storage tiers
+- **Security Architecture**: Defense in depth, zero trust, encryption
+- **Resilience Patterns**: Circuit breaker, bulkhead, graceful degradation
+- **Monitoring Architecture**: Metrics → Collection → Aggregation → Alerting
+
+## �📚 Recommended Books & Resources
 
 Deepen your DevOps/SRE knowledge with these industry-standard books:
 
