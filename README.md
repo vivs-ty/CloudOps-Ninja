@@ -8,6 +8,9 @@
 [![Docker](https://img.shields.io/badge/Docker-Latest-blue?logo=docker)](https://www.docker.com/)
 [![AWS](https://img.shields.io/badge/AWS-Free%20Tier-orange?logo=amazon-aws)](https://aws.amazon.com/free/)
 [![GCP](https://img.shields.io/badge/GCP-Free%20Tier-red?logo=google-cloud)](https://cloud.google.com/free)
+[![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-brightgreen?logo=github)](https://github.com/vivs-ty/CloudOps-Ninja/actions)
+[![Tests](https://img.shields.io/badge/Tests-22%2F22%20Passing-success)](./backend/tests/)
+[![Code Coverage](https://img.shields.io/badge/Coverage-Comprehensive-blue)](#)
 
 A **fun, practical project** to learn Python, Bash, Linux, AWS, GCP, and SRE concepts by building a real multi-cloud monitoring and deployment system!
 
@@ -169,7 +172,39 @@ make dashboard
 # Check Grafana at http://localhost:3000
 ```
 
-## 💡 Learning Milestones
+## � CI/CD Pipeline
+
+Every push to `main` branch **automatically**:
+- ✅ Runs 22 automated tests
+- 🐳 Builds Docker container
+- 📋 Plans infrastructure changes
+- 🚀 Deploys to AWS/GCP
+- 📊 Generates deployment report
+
+**View Pipeline:** [.github/workflows/](.github/workflows/)
+
+**Full Documentation:** [DEPLOYMENT_STRATEGY.md](DEPLOYMENT_STRATEGY.md)
+
+### Pipeline Stages
+1. **Validate & Test** - Run 22 pytest tests, validate Terraform/Python
+2. **Build Docker** - Create containerized app, push to registry
+3. **Plan Infrastructure** - Preview AWS/GCP changes
+4. **Deploy** - Apply Terraform, update cloud resources
+5. **Report** - Generate summary of changes
+
+### Docker Image Access
+```bash
+# Pull latest version
+docker pull ghcr.io/vivs-ty/CloudOps-Ninja/backend:latest
+
+# Pull specific version
+docker pull ghcr.io/vivs-ty/CloudOps-Ninja/backend:v1.0.0
+
+# Run locally
+docker run -p 5000:5000 ghcr.io/vivs-ty/CloudOps-Ninja/backend:latest
+```
+
+## �💡 Learning Milestones
 
 Before you jump to each cloud, check the learning path:
 
