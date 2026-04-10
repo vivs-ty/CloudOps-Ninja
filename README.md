@@ -133,6 +133,7 @@ CloudOps-Ninja/
 │
 ├── Makefile                   # Quick commands
 ├── docker-compose.yml         # Local development
+├── ISSUES_FIXED.md            # List of fixed issues
 └── .gitignore
 ```
 

@@ -8,6 +8,7 @@ from flask import Flask, jsonify, render_template_string
 from datetime import datetime
 import os
 import json
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
