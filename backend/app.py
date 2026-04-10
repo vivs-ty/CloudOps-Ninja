@@ -10,13 +10,26 @@ import os
 import json
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+
+# Secret key for sessions
+app.secret_key = 'dev-secret-key-change-in-production'
 
 # Database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+# Login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # Database models
 class Deployment(db.Model):
@@ -48,13 +61,62 @@ with app.app_context():
         db.session.add(Server(cloud='aws', count=2, status='healthy', cpu=23, memory=45))
     if not Server.query.filter_by(cloud='gcp').first():
         db.session.add(Server(cloud='gcp', count=2, status='healthy', cpu=18, memory=38))
+    
+    # Initialize default user if not exist
+    if not User.query.filter_by(username='admin').first():
+        from werkzeug.security import generate_password_hash
+        db.session.add(User(username='admin', password=generate_password_hash('password')))
+    
     db.session.commit()
 
 # Simple in-memory storage (upgrade to database later) - REMOVED, now using DB
 
+# ==================== AUTH ROUTES ====================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            return redirect(url_for('home'))
+        flash('Invalid username or password')
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Login - CloudOps Ninja</title>
+        <style>
+            body { font-family: Arial; margin: 20px; background: #1a1a1a; color: #fff; text-align: center; }
+            form { background: #2a2a2a; padding: 20px; border-radius: 8px; max-width: 300px; margin: 0 auto; }
+            input { display: block; width: 100%; margin: 10px 0; padding: 10px; }
+            button { background: #00ff00; color: #000; padding: 10px; border: none; width: 100%; }
+        </style>
+    </head>
+    <body>
+        <h1>🥷 CloudOps Ninja Login</h1>
+        <form method="post">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
+        <p>Default: admin / password</p>
+    </body>
+    </html>
+    '''
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 # ==================== ROUTES ====================
 
 @app.route('/')
+@login_required
 def home():
     """Home page - Portfolio dashboard"""
     # Get data from database
@@ -80,10 +142,14 @@ def home():
             button:hover {{ background: #00dd00; }}
             a {{ color: #00ff00; text-decoration: none; margin: 10px 20px 10px 0; }}
             .api-link {{ display: inline-block; margin: 5px 0; }}
+            .user-info {{ text-align: right; margin-bottom: 20px; }}
         </style>
     </head>
     <body>
         <div class="container">
+            <div class="user-info">
+                Welcome, {current_user.username}! <a href="/logout">Logout</a>
+            </div>
             <h1>🥷 CloudOps Ninja Dashboard</h1>
             <p style="text-align:center;">Learning SRE the fun way - deploying everywhere, monitoring everything!</p>
             
@@ -229,6 +295,7 @@ cloudops_gcp_memory_percent {gcp_memory}
 
 
 @app.route('/api/deploy/<cloud>/<version>')
+@login_required
 def deploy(cloud, version):
     """Simulate a deployment"""
     if cloud not in ["aws", "gcp"]:

@@ -18,3 +18,9 @@ This file lists all the issues that have been identified and fixed in the CloudO
 - **Fix**: Implemented SQLite database using Flask-SQLAlchemy. Created Deployment and Server models. Updated all routes to use database queries instead of in-memory lists/dicts. Added database initialization with default server data.
 - **Files Changed**: backend/app.py, backend/requirements.txt
 
+### Issue #3: Implement user authentication
+- **Issue**: Dashboard was not secured, anyone could access it without login.
+- **Date Fixed**: 2026-04-10
+- **Fix**: Added Flask-Login for session management. Created User model with hashed passwords. Added login/logout routes with forms. Protected dashboard and deployment routes with @login_required. Added default admin user (admin/password). Updated dashboard to show current user and logout link.
+- **Files Changed**: backend/app.py, backend/requirements.txt
+
