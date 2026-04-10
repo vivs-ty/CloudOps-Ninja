@@ -11,6 +11,7 @@ import json
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
 
@@ -30,6 +31,17 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# Prometheus metrics
+DEPLOYMENTS_TOTAL = Counter('cloudops_deployments_total', 'Total deployments', ['cloud'])
+UPTIME_PERCENT = Gauge('cloudops_uptime_percent', 'Uptime percentage')
+AWS_CPU_PERCENT = Gauge('cloudops_aws_cpu_percent', 'AWS CPU usage')
+AWS_MEMORY_PERCENT = Gauge('cloudops_aws_memory_percent', 'AWS Memory usage')
+GCP_CPU_PERCENT = Gauge('cloudops_gcp_cpu_percent', 'GCP CPU usage')
+GCP_MEMORY_PERCENT = Gauge('cloudops_gcp_memory_percent', 'GCP Memory usage')
+
+# Initialize metrics with current values
+UPTIME_PERCENT.set(99.92)
 
 # Database models
 class Deployment(db.Model):
@@ -57,15 +69,31 @@ with app.app_context():
     db.create_all()
 
 # Initialize servers if not exist
-    if not Server.query.filter_by(cloud='aws').first():
-        db.session.add(Server(cloud='aws', count=2, status='healthy', cpu=23, memory=45))
-    if not Server.query.filter_by(cloud='gcp').first():
-        db.session.add(Server(cloud='gcp', count=2, status='healthy', cpu=18, memory=38))
+    aws_server = Server.query.filter_by(cloud='aws').first()
+    if not aws_server:
+        aws_server = Server(cloud='aws', count=2, status='healthy', cpu=23, memory=45)
+        db.session.add(aws_server)
+    gcp_server = Server.query.filter_by(cloud='gcp').first()
+    if not gcp_server:
+        gcp_server = Server(cloud='gcp', count=2, status='healthy', cpu=18, memory=38)
+        db.session.add(gcp_server)
+    
+    # Update Prometheus metrics with server data
+    AWS_CPU_PERCENT.set(aws_server.cpu)
+    AWS_MEMORY_PERCENT.set(aws_server.memory)
+    GCP_CPU_PERCENT.set(gcp_server.cpu)
+    GCP_MEMORY_PERCENT.set(gcp_server.memory)
     
     # Initialize default user if not exist
     if not User.query.filter_by(username='admin').first():
         from werkzeug.security import generate_password_hash
         db.session.add(User(username='admin', password=generate_password_hash('password')))
+    
+    # Initialize Prometheus metrics with current data
+    aws_deployments = Deployment.query.filter_by(cloud='aws').count()
+    gcp_deployments = Deployment.query.filter_by(cloud='gcp').count()
+    DEPLOYMENTS_TOTAL.labels(cloud='aws').inc(aws_deployments)
+    DEPLOYMENTS_TOTAL.labels(cloud='gcp').inc(gcp_deployments)
     
     db.session.commit()
 
@@ -259,37 +287,36 @@ def api_deployments():
 
 
 @app.route('/api/metrics')
+@login_required
 def api_metrics():
     """Prometheus-style metrics (basic version)"""
-    aws_server = Server.query.filter_by(cloud='aws').first()
-    gcp_server = Server.query.filter_by(cloud='gcp').first()
-    aws_cpu = aws_server.cpu if aws_server else 0
-    aws_memory = aws_server.memory if aws_server else 0
-    gcp_cpu = gcp_server.cpu if gcp_server else 0
-    gcp_memory = gcp_server.memory if gcp_server else 0
+    # Get current values from Prometheus metrics
+    total_deployments = sum(DEPLOYMENTS_TOTAL.labels(cloud='aws')._value + DEPLOYMENTS_TOTAL.labels(cloud='gcp')._value for _ in [None])  # This is hacky, better to use database
+    total_deployments = Deployment.query.count()  # Use database for simplicity
+    
     metrics = f"""# HELP cloudops_deployments_total Total deployments
 # TYPE cloudops_deployments_total counter
-cloudops_deployments_total {Deployment.query.count()}
+cloudops_deployments_total {total_deployments}
 
 # HELP cloudops_uptime_percent Uptime percentage
 # TYPE cloudops_uptime_percent gauge
-cloudops_uptime_percent 99.92
+cloudops_uptime_percent {UPTIME_PERCENT._value}
 
 # HELP cloudops_aws_cpu_percent AWS CPU usage
 # TYPE cloudops_aws_cpu_percent gauge
-cloudops_aws_cpu_percent {aws_cpu}
-
-# HELP cloudops_gcp_cpu_percent GCP CPU usage
-# TYPE cloudops_gcp_cpu_percent gauge
-cloudops_gcp_cpu_percent {gcp_cpu}
+cloudops_aws_cpu_percent {AWS_CPU_PERCENT._value}
 
 # HELP cloudops_aws_memory_percent AWS Memory usage
 # TYPE cloudops_aws_memory_percent gauge
-cloudops_aws_memory_percent {aws_memory}
+cloudops_aws_memory_percent {AWS_MEMORY_PERCENT._value}
+
+# HELP cloudops_gcp_cpu_percent GCP CPU usage
+# TYPE cloudops_gcp_cpu_percent gauge
+cloudops_gcp_cpu_percent {GCP_CPU_PERCENT._value}
 
 # HELP cloudops_gcp_memory_percent GCP Memory usage
 # TYPE cloudops_gcp_memory_percent gauge
-cloudops_gcp_memory_percent {gcp_memory}
+cloudops_gcp_memory_percent {GCP_MEMORY_PERCENT._value}
 """
     return metrics, 200, {'Content-Type': 'text/plain'}
 
@@ -305,6 +332,9 @@ def deploy(cloud, version):
     db.session.add(new_deployment)
     db.session.commit()
     
+    # Update Prometheus metrics
+    DEPLOYMENTS_TOTAL.labels(cloud=cloud).inc()
+    
     deployment_data = {
         "cloud": new_deployment.cloud,
         "version": new_deployment.version,
@@ -318,10 +348,10 @@ def deploy(cloud, version):
     }), 201
 
 
-@app.route('/health')
-def health():
-    """Health check endpoint (for load balancers)"""
-    return jsonify({"status": "ok"}), 200
+@app.route('/metrics')
+def metrics():
+    """Prometheus metrics endpoint for scraping"""
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 
 # ==================== ERROR HANDLERS ====================

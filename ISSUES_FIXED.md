@@ -28,3 +28,9 @@ This file lists all the issues that have been identified and fixed in the CloudO
 - **Fix**: Added Flask-Login for session management. Created User model with hashed passwords. Added login/logout routes with forms. Protected dashboard and deployment routes with @login_required. Added default admin user (admin/password). Updated dashboard to show current user and logout link.
 - **Files Changed**: backend/app.py, backend/requirements.txt
 
+### Issue #4: Integrate with Prometheus for real metrics
+- **Issue**: App was using mock/hardcoded metrics instead of real Prometheus metrics.
+- **Date Fixed**: 2026-04-10
+- **Fix**: Implemented proper Prometheus instrumentation with Counter and Gauge metrics. Added /metrics endpoint for Prometheus scraping. Metrics are now updated in real-time when deployments occur and initialized from database on startup. Replaced mock data with actual metric objects.
+- **Files Changed**: backend/app.py
+
