@@ -65,6 +65,37 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(150), nullable=False)
 
 # Create database tables and initialize data (skip in testing)
+def initialize_app_data():
+    """Initialize default application data"""
+    # Initialize servers if not exist
+    aws_server = Server.query.filter_by(cloud='aws').first()
+    if not aws_server:
+        aws_server = Server(cloud='aws', count=2, status='healthy', cpu=23, memory=45)
+        db.session.add(aws_server)
+    gcp_server = Server.query.filter_by(cloud='gcp').first()
+    if not gcp_server:
+        gcp_server = Server(cloud='gcp', count=2, status='healthy', cpu=18, memory=38)
+        db.session.add(gcp_server)
+    
+    # Update Prometheus metrics with server data
+    AWS_CPU_PERCENT.set(aws_server.cpu if aws_server else 23)
+    AWS_MEMORY_PERCENT.set(aws_server.memory if aws_server else 45)
+    GCP_CPU_PERCENT.set(gcp_server.cpu if gcp_server else 18)
+    GCP_MEMORY_PERCENT.set(gcp_server.memory if gcp_server else 38)
+    
+    # Initialize default user if not exist
+    if not User.query.filter_by(username='admin').first():
+        from werkzeug.security import generate_password_hash
+        db.session.add(User(username='admin', password=generate_password_hash('password')))
+    
+    # Initialize Prometheus metrics with current data
+    aws_deployments = Deployment.query.filter_by(cloud='aws').count()
+    gcp_deployments = Deployment.query.filter_by(cloud='gcp').count()
+    DEPLOYMENTS_TOTAL.labels(cloud='aws').inc(aws_deployments)
+    DEPLOYMENTS_TOTAL.labels(cloud='gcp').inc(gcp_deployments)
+    
+    db.session.commit()
+
 if not app.config.get('TESTING'):
     with app.app_context():
         db.create_all()
@@ -263,9 +294,8 @@ def api_deployments():
 @login_required
 def api_metrics():
     """Prometheus-style metrics (basic version)"""
-    # Get current values from Prometheus metrics
-    total_deployments = sum(DEPLOYMENTS_TOTAL.labels(cloud='aws')._value + DEPLOYMENTS_TOTAL.labels(cloud='gcp')._value for _ in [None])  # This is hacky, better to use database
-    total_deployments = Deployment.query.count()  # Use database for simplicity
+    # Get current values from database (more reliable than Prometheus metrics)
+    total_deployments = Deployment.query.count()
     
     metrics = f"""# HELP cloudops_deployments_total Total deployments
 # TYPE cloudops_deployments_total counter

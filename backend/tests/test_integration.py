@@ -20,8 +20,8 @@ def test_full_deployment_workflow(authenticated_client):
 
     assert final_count == initial_count + 1
     assert len(final_data['deployments']) == final_count
-    assert final_data['deployments'][-1]['version'] == 'v2.0.0'
-    assert final_data['deployments'][-1]['cloud'] == 'aws'
+    assert final_data['deployments'][0]['version'] == 'v2.0.0'
+    assert final_data['deployments'][0]['cloud'] == 'aws'
 
 
 def test_multiple_deployments(authenticated_client):

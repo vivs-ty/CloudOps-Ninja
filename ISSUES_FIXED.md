@@ -34,3 +34,17 @@ This file lists all the issues that have been identified and fixed in the CloudO
 - **Fix**: Implemented proper Prometheus instrumentation with Counter and Gauge metrics. Added /metrics endpoint for Prometheus scraping. Metrics are now updated in real-time when deployments occur and initialized from database on startup. Replaced mock data with actual metric objects.
 - **Files Changed**: backend/app.py
 
+### Issue #5: Add automated testing & CI integration
+- **Issue**: No test coverage. Code changes could break existing functionality without detection.
+- **Date Fixed**: 2026-04-10
+- **Fix**: 
+  - Created comprehensive test suite with pytest:
+    - test_models.py: Tests for User, Server, and Deployment model creation and validation
+    - test_routes.py: API endpoint tests covering authentication, authorization, and functionality (12 tests)
+    - test_auth.py: Authentication flow tests including user creation and password verification (3 tests)
+    - test_integration.py: End-to-end workflow tests including deployment workflow and metrics (4 tests)
+  - Fixed database initialization for testing environments to prevent conflicts
+  - Created conftest.py with fixtures for test client setup and authentication
+  - All 22 tests pass with proper isolation and in-memory database
+  - Added pytest configuration with markers and coverage support
+- **Files Changed**: backend/app.py, backend/requirements.txt, backend/tests/conftest.py, backend/tests/test_models.py, backend/tests/test_routes.py, backend/tests/test_auth.py, backend/tests/test_integration.py, pytest.ini

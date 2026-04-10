@@ -22,10 +22,6 @@ def client():
 @pytest.fixture
 def authenticated_client(client):
     """Authenticated test client fixture"""
-    with client.application.app_context():
-        # Log in the test user
-        from flask_login import login_user
-        test_user = User.query.filter_by(username='testuser').first()
-        login_user(test_user)
-
+    # Log in via POST request
+    client.post('/login', data={'username': 'admin', 'password': 'password'})
     return client
