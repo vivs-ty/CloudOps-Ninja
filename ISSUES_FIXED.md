@@ -10,7 +10,11 @@ This file lists all the issues that have been identified and fixed in the CloudO
 
 ## Fixed Issues
 
-## Fixed Issues
+### Issue #1: Missing CI workflow reference
+- **Issue**: README referenced .github/workflows/deploy.yml but the file was missing from the repository.
+- **Date Fixed**: 2026-04-10
+- **Fix**: Created the missing GitHub Actions workflow file with CI/CD pipeline for automated deployment.
+- **Files Changed**: .github/workflows/deploy.yml
 
 ### Issue #2: Add database integration for persistent storage
 - **Issue**: Currently using in-memory storage for deployments and servers. Data was lost on app restarts.
