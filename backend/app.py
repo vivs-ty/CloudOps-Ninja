@@ -4,42 +4,82 @@ CloudOps Ninja - Multi-Cloud Portfolio Site
 A fun SRE learning project combining Python, Bash, Linux, AWS, and GCP
 """
 
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, request, redirect, url_for, flash
 from datetime import datetime
 import os
 import json
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 
 app = Flask(__name__)
 
-# Simple in-memory storage (upgrade to database later)
-deployments = []
-servers = {
-    "aws": {"count": 2, "status": "healthy", "cpu": 23, "memory": 45},
-    "gcp": {"count": 2, "status": "healthy", "cpu": 18, "memory": 38},
-}
+# Database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# Database models
+class Deployment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cloud = db.Column(db.String(10), nullable=False)
+    version = db.Column(db.String(50), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='success')
+
+class Server(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cloud = db.Column(db.String(10), unique=True, nullable=False)
+    count = db.Column(db.Integer, default=2)
+    status = db.Column(db.String(20), default='healthy')
+    cpu = db.Column(db.Integer, default=20)
+    memory = db.Column(db.Integer, default=40)
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    password = db.Column(db.String(150), nullable=False)
+
+# Create database tables
+with app.app_context():
+    db.create_all()
+
+# Initialize servers if not exist
+    if not Server.query.filter_by(cloud='aws').first():
+        db.session.add(Server(cloud='aws', count=2, status='healthy', cpu=23, memory=45))
+    if not Server.query.filter_by(cloud='gcp').first():
+        db.session.add(Server(cloud='gcp', count=2, status='healthy', cpu=18, memory=38))
+    db.session.commit()
+
+# Simple in-memory storage (upgrade to database later) - REMOVED, now using DB
 
 # ==================== ROUTES ====================
 
 @app.route('/')
 def home():
     """Home page - Portfolio dashboard"""
-    html = '''
+    # Get data from database
+    aws_server = Server.query.filter_by(cloud='aws').first()
+    gcp_server = Server.query.filter_by(cloud='gcp').first()
+    total_deployments = Deployment.query.count()
+    last_deployment = Deployment.query.order_by(Deployment.timestamp.desc()).first()
+    last_timestamp = last_deployment.timestamp.isoformat() if last_deployment else 'Never'
+    
+    html = f'''
     <!DOCTYPE html>
     <html>
     <head>
         <title>CloudOps Ninja 🥷</title>
         <style>
-            body { font-family: Arial; margin: 20px; background: #1a1a1a; color: #fff; }
-            .container { max-width: 1200px; margin: 0 auto; }
-            h1 { color: #00ff00; text-align: center; }
-            .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-            .card { background: #2a2a2a; padding: 15px; border-radius: 8px; border-left: 4px solid #00ff00; }
-            .number { font-size: 2em; color: #00ff00; font-weight: bold; }
-            button { background: #00ff00; color: #000; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
-            button:hover { background: #00dd00; }
-            a { color: #00ff00; text-decoration: none; margin: 10px 20px 10px 0; }
-            .api-link { display: inline-block; margin: 5px 0; }
+            body {{ font-family: Arial; margin: 20px; background: #1a1a1a; color: #fff; }}
+            .container {{ max-width: 1200px; margin: 0 auto; }}
+            h1 {{ color: #00ff00; text-align: center; }}
+            .stats {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }}
+            .card {{ background: #2a2a2a; padding: 15px; border-radius: 8px; border-left: 4px solid #00ff00; }}
+            .number {{ font-size: 2em; color: #00ff00; font-weight: bold; }}
+            button {{ background: #00ff00; color: #000; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }}
+            button:hover {{ background: #00dd00; }}
+            a {{ color: #00ff00; text-decoration: none; margin: 10px 20px 10px 0; }}
+            .api-link {{ display: inline-block; margin: 5px 0; }}
         </style>
     </head>
     <body>
@@ -51,21 +91,21 @@ def home():
                 <div class="card">
                     <h3>AWS Cloud</h3>
                     <p>Status: <span style="color: #00ff00;">●</span> Healthy</p>
-                    <p>Instances: <span class="number">2</span></p>
-                    <p>CPU Usage: 23% | Memory: 45%</p>
+                    <p>Instances: <span class="number">{aws_server.count if aws_server else 0}</span></p>
+                    <p>CPU Usage: {aws_server.cpu if aws_server else 0}% | Memory: {aws_server.memory if aws_server else 0}%</p>
                 </div>
                 
                 <div class="card">
                     <h3>GCP Cloud</h3>
                     <p>Status: <span style="color: #00ff00;">●</span> Healthy</p>
-                    <p>Instances: <span class="number">2</span></p>
-                    <p>CPU Usage: 18% | Memory: 38%</p>
+                    <p>Instances: <span class="number">{gcp_server.count if gcp_server else 0}</span></p>
+                    <p>CPU Usage: {gcp_server.cpu if gcp_server else 0}% | Memory: {gcp_server.memory if gcp_server else 0}%</p>
                 </div>
                 
                 <div class="card">
                     <h3>Total Deployments</h3>
-                    <p>Count: <span class="number">''' + str(len(deployments)) + '''</span></p>
-                    <p>Last: ''' + (deployments[-1]['timestamp'] if deployments else 'Never') + '''</p>
+                    <p>Count: <span class="number">{total_deployments}</span></p>
+                    <p>Last: {last_timestamp}</p>
                 </div>
                 
                 <div class="card">
@@ -117,9 +157,19 @@ def api_status():
 @app.route('/api/servers')
 def api_servers():
     """Cloud infrastructure stats"""
+    servers_data = {}
+    total_instances = 0
+    for server in Server.query.all():
+        servers_data[server.cloud] = {
+            "count": server.count,
+            "status": server.status,
+            "cpu": server.cpu,
+            "memory": server.memory
+        }
+        total_instances += server.count
     return jsonify({
-        "clouds": servers,
-        "total_instances": servers["aws"]["count"] + servers["gcp"]["count"],
+        "clouds": servers_data,
+        "total_instances": total_instances,
         "timestamp": datetime.now().isoformat()
     })
 
@@ -127,19 +177,33 @@ def api_servers():
 @app.route('/api/deployments')
 def api_deployments():
     """Deployment history"""
+    deployments_list = []
+    for dep in Deployment.query.order_by(Deployment.timestamp.desc()).all():
+        deployments_list.append({
+            "cloud": dep.cloud,
+            "version": dep.version,
+            "timestamp": dep.timestamp.isoformat(),
+            "status": dep.status
+        })
     return jsonify({
-        "total": len(deployments),
-        "deployments": deployments,
-        "last_deployment": deployments[-1] if deployments else None
+        "total": len(deployments_list),
+        "deployments": deployments_list,
+        "last_deployment": deployments_list[0] if deployments_list else None
     })
 
 
 @app.route('/api/metrics')
 def api_metrics():
     """Prometheus-style metrics (basic version)"""
+    aws_server = Server.query.filter_by(cloud='aws').first()
+    gcp_server = Server.query.filter_by(cloud='gcp').first()
+    aws_cpu = aws_server.cpu if aws_server else 0
+    aws_memory = aws_server.memory if aws_server else 0
+    gcp_cpu = gcp_server.cpu if gcp_server else 0
+    gcp_memory = gcp_server.memory if gcp_server else 0
     metrics = f"""# HELP cloudops_deployments_total Total deployments
 # TYPE cloudops_deployments_total counter
-cloudops_deployments_total {len(deployments)}
+cloudops_deployments_total {Deployment.query.count()}
 
 # HELP cloudops_uptime_percent Uptime percentage
 # TYPE cloudops_uptime_percent gauge
@@ -147,19 +211,19 @@ cloudops_uptime_percent 99.92
 
 # HELP cloudops_aws_cpu_percent AWS CPU usage
 # TYPE cloudops_aws_cpu_percent gauge
-cloudops_aws_cpu_percent {servers['aws']['cpu']}
+cloudops_aws_cpu_percent {aws_cpu}
 
 # HELP cloudops_gcp_cpu_percent GCP CPU usage
 # TYPE cloudops_gcp_cpu_percent gauge
-cloudops_gcp_cpu_percent {servers['gcp']['cpu']}
+cloudops_gcp_cpu_percent {gcp_cpu}
 
 # HELP cloudops_aws_memory_percent AWS Memory usage
 # TYPE cloudops_aws_memory_percent gauge
-cloudops_aws_memory_percent {servers['aws']['memory']}
+cloudops_aws_memory_percent {aws_memory}
 
 # HELP cloudops_gcp_memory_percent GCP Memory usage
 # TYPE cloudops_gcp_memory_percent gauge
-cloudops_gcp_memory_percent {servers['gcp']['memory']}
+cloudops_gcp_memory_percent {gcp_memory}
 """
     return metrics, 200, {'Content-Type': 'text/plain'}
 
@@ -170,17 +234,20 @@ def deploy(cloud, version):
     if cloud not in ["aws", "gcp"]:
         return jsonify({"error": "Invalid cloud"}), 400
     
-    deployment = {
-        "cloud": cloud,
-        "version": version,
-        "timestamp": datetime.now().isoformat(),
-        "status": "success"
+    new_deployment = Deployment(cloud=cloud, version=version, status='success')
+    db.session.add(new_deployment)
+    db.session.commit()
+    
+    deployment_data = {
+        "cloud": new_deployment.cloud,
+        "version": new_deployment.version,
+        "timestamp": new_deployment.timestamp.isoformat(),
+        "status": new_deployment.status
     }
-    deployments.append(deployment)
     
     return jsonify({
         "message": f"Deployed {version} to {cloud}",
-        "deployment": deployment
+        "deployment": deployment_data
     }), 201
 
 

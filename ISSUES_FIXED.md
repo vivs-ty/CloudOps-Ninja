@@ -10,5 +10,11 @@ This file lists all the issues that have been identified and fixed in the CloudO
 
 ## Fixed Issues
 
-<!-- Add fixed issues here -->
+## Fixed Issues
+
+### Issue #2: Add database integration for persistent storage
+- **Issue**: Currently using in-memory storage for deployments and servers. Data was lost on app restarts.
+- **Date Fixed**: 2026-04-10
+- **Fix**: Implemented SQLite database using Flask-SQLAlchemy. Created Deployment and Server models. Updated all routes to use database queries instead of in-memory lists/dicts. Added database initialization with default server data.
+- **Files Changed**: backend/app.py, backend/requirements.txt
 

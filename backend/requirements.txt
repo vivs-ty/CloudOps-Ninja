@@ -6,3 +6,4 @@ python-dotenv==1.0.0
 prometheus-client==0.17.1
 requests==2.31.0
 Flask-SQLAlchemy==3.0.5
+Flask-Login==0.6.3
