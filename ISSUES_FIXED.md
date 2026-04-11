@@ -71,3 +71,95 @@ This file lists all the issues that have been identified and fixed in the CloudO
   - **Performance**: Docker layer caching, parallel Terraform plans for AWS/GCP, efficient dependency caching
 - **Files Changed**: .github/workflows/deploy.yml, .github/workflows/README.md, DEPLOYMENT_STRATEGY.md, README.md
 
+### Issue #7: Comprehensive health checks
+- **Issue**: Application needed comprehensive system and application health monitoring to detect issues proactively.
+- **Date Fixed**: 2026-04-11
+- **Fix**: 
+  - Created `/backend/health_check.py` module with 4 independent health check functions:
+    1. **Database Check**: Verifies SQLAlchemy database connectivity
+    2. **System Resources Check**: Monitors CPU, memory, and disk usage using psutil
+    3. **External Services Check**: Validates connections to AWS, GCP, and DNS
+    4. **Application Status Check**: Validates core Flask application state
+  - Created `/api/health` endpoint returning structured JSON with health level (OK/WARNING/CRITICAL)
+  - Health check response includes:
+    - Overall health level and timestamp
+    - Detailed status for each component (database, CPU, memory, disk, AWS, GCP, DNS, Flask app)
+    - Specific warnings and thresholds (CPU > 80%, memory > 85%, disk > 90%)
+    - HTTP status codes: 200 (OK), 206 (partial), 503 (critical)
+  - Added 6 integration tests covering all health check scenarios and status codes
+  - Created comprehensive documentation in `docs/HEALTH_CHECK_API.md`
+  - All 36 tests passing (30 existing + 6 health check tests)
+- **Files Changed**: backend/health_check.py, backend/app.py, backend/tests/test_routes.py, docs/HEALTH_CHECK_API.md
+
+### Issue #8: Structured logging with configurable levels
+- **Issue**: Application lacked structured logging for operational visibility and debugging.
+- **Date Fixed**: 2026-04-11
+- **Fix**:
+  - Created `/backend/logger.py` module with production-grade logging:
+    - Custom `ColorFormatter` for color-coded console output (DEBUG=blue, INFO=cyan, WARNING=yellow, ERROR=red)
+    - Structured JSON formatting for log files with metadata (timestamp, level, logger, message, extra fields)
+    - Rotating file handler (10MB max size, 5 backup files) writing to `logs/cloudops.log`
+    - Configurable log levels (DEBUG, INFO, WARNING, ERROR) via environment or config
+    - Specialized logging functions: `log_auth()`, `log_deployment()`, `log_health()`, `log_error()`, etc.
+  - Integrated logging throughout Flask application:
+    - Authentication events (login failures, successful login with user IP)
+    - Deployment operations (start, completion, errors)
+    - Health check execution and results
+    - Application startup/shutdown
+    - Error tracking with stack traces
+  - Added 26 comprehensive tests covering:
+    - Logger initialization and configuration
+    - Console formatting with colors
+    - Rotating file handler functionality
+    - Log message structure and metadata
+    - Specialized logging functions
+    - Flask integration and middleware logging
+  - Created documentation in `docs/STRUCTURED_LOGGING.md` with examples, configuration, and troubleshooting
+  - All 62 tests passing (36 existing health check + 26 logging tests)
+- **Files Changed**: backend/logger.py, backend/app.py, backend/tests/test_logging.py, docs/STRUCTURED_LOGGING.md
+
+### Issue #9: Reusable Terraform modules
+- **Issue**: Infrastructure code was monolithic and not reusable across different projects or environments.
+- **Date Fixed**: 2026-04-11
+- **Fix**:
+  - Created 5 reusable, production-grade Terraform modules under `/infrastructure/modules/`:
+    1. **VPC Module** (`vpc/`):
+       - Creates VPC with multi-AZ subnets, internet gateway, and route tables
+       - Inputs: vpc_cidr, subnet_cidrs, availability_zones, environment, project_name
+       - Outputs: vpc_id, subnet_ids, internet_gateway_id, route_table_id
+    2. **Security Group Module** (`security_group/`):
+       - Creates security groups with conditional ingress rules (SSH, HTTP, HTTPS, port 5000)
+       - Inputs: vpc_id, allowed_ssh_cidrs, enable flags for each rule type
+       - Outputs: security_group_id, security_group_name, security_group_arn
+    3. **EC2 Module** (`ec2/`):
+       - Creates EC2 instances with auto-AMI lookup, user data support, configurable volumes
+       - Inputs: subnet_id, security_group_ids, instance_type, user_data, root_volume_size
+       - Outputs: instance_id, instance_public_ip, instance_private_ip, instance_public_dns
+    4. **Elastic IP Module** (`elastic_ip/`):
+       - Creates Elastic IPs for static public IP addresses with proper tagging
+       - Inputs: instance_id, vpc_id, eip_name, environment, project_name
+       - Outputs: elastic_ip_id, elastic_ip_address, elastic_ip_arn
+    5. **Load Balancer Module** (`load_balancer/`):
+       - Creates Application Load Balancer with target groups and HTTP listener
+       - Inputs: vpc_id, subnet_ids, security_group_ids, enable flags, idle_timeout
+       - Outputs: alb_id, alb_arn, alb_dns_name, target_group_arn, listener_arn
+  - Refactored `/infrastructure/aws/main.tf`:
+    - Reduced from ~170 lines of inline resources to ~60 lines using modules
+    - Proper module instantiation with clear dependencies: VPC → Security Group → EC2 → Elastic IP → Load Balancer
+    - Example configurations for all modules
+  - Updated `/infrastructure/aws/variables.tf` and `/infrastructure/aws/outputs.tf`:
+    - New root-level variables for module configuration with sensible defaults
+    - Root-level outputs aggregating all module outputs for easy access
+  - Created comprehensive documentation:
+    - `/infrastructure/aws/USAGE_GUIDE.md`: User-friendly quick start with examples
+    - `/infrastructure/aws/DEPLOYMENT_CHECKLIST.md`: Prerequisites and deployment steps
+    - `/docs/TERRAFORM_MODULES.md`: 500+ lines comprehensive technical guide
+    - `/infrastructure/modules/README.md`: Quick reference and module index
+  - Created `/infrastructure/aws/terraform.tfvars.example`:
+    - Example configuration file with all variables and descriptions
+    - Use cases: minimal (free tier), production, and high-security configurations
+  - Validation completed:
+    - `terraform init`: Success (all modules loaded, AWS provider v5.100.0 installed)
+    - `terraform validate`: Success (no configuration errors)
+- **Files Changed**: infrastructure/modules/vpc/, infrastructure/modules/security_group/, infrastructure/modules/ec2/, infrastructure/modules/elastic_ip/, infrastructure/modules/load_balancer/, infrastructure/aws/main.tf, infrastructure/aws/variables.tf, infrastructure/aws/outputs.tf, infrastructure/aws/USAGE_GUIDE.md, infrastructure/aws/DEPLOYMENT_CHECKLIST.md, infrastructure/aws/terraform.tfvars.example, docs/TERRAFORM_MODULES.md, infrastructure/modules/README.md
+

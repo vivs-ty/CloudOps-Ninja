@@ -1,5 +1,5 @@
-# Basic Terraform for AWS
-# Learn Infrastructure as Code
+# CloudOps Ninja - AWS Infrastructure using Reusable Modules
+# Learn Infrastructure as Code with modular Terraform
 
 terraform {
   required_version = ">= 1.0"
@@ -16,155 +16,77 @@ provider "aws" {
   region = var.aws_region
 }
 
-# VPC - Your network on AWS
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
+# VPC Module
+module "vpc" {
+  source = "../modules/vpc"
 
-  tags = {
-    Name = "cloudops-vpc"
-  }
+  vpc_cidr           = var.vpc_cidr
+  subnet_cidrs       = var.subnet_cidrs
+  availability_zones = var.availability_zones
+  environment        = var.environment
+  project_name       = var.project_name
+  enable_dns         = true
 }
 
-# Subnet - Part of the network
-resource "aws_subnet" "web" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "${var.aws_region}a"
+# Security Group Module
+module "security_group" {
+  source = "../modules/security_group"
 
-  tags = {
-    Name = "cloudops-subnet"
-  }
+  vpc_id                = module.vpc.vpc_id
+  security_group_name   = "web-sg"
+  environment           = var.environment
+  project_name          = var.project_name
+  allowed_ssh_cidrs     = var.allowed_ssh_cidrs
+  enable_ssh            = true
+  enable_http           = true
+  enable_https          = true
+  enable_app_port       = true
 }
 
-# Internet Gateway - Connection to internet
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
+# EC2 Module
+module "web_server" {
+  source = "../modules/ec2"
 
-  tags = {
-    Name = "cloudops-igw"
-  }
-}
+  subnet_id        = module.vpc.subnet_ids[0]
+  security_group_ids = [module.security_group.security_group_id]
+  instance_type    = var.instance_type
+  instance_name    = "web-server"
+  environment      = var.environment
+  project_name     = var.project_name
+  root_volume_size = 20
+  monitoring_enabled = false
 
-# Route Table - Traffic rules
-resource "aws_route_table" "web" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
-  }
-
-  tags = {
-    Name = "cloudops-rt"
-  }
-}
-
-resource "aws_route_table_association" "web" {
-  subnet_id      = aws_subnet.web.id
-  route_table_id = aws_route_table.web.id
-}
-
-# Security Group - Firewall
-resource "aws_security_group" "web" {
-  name   = "cloudops-sg"
-  vpc_id = aws_vpc.main.id
-
-  # Allow HTTP
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Allow HTTPS
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Allow SSH from your IP
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_ssh_cidrs
-  }
-
-  # Allow outbound
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "cloudops-sg"
-  }
-}
-
-# EC2 Instance - Virtual machine
-resource "aws_instance" "web" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.web.id
-  vpc_security_group_ids = [aws_security_group.web.id]
-  associate_public_ip_address = true
-
-  # User data script - runs on startup
-  user_data = base64encode(<<-EOF
+  user_data = <<-EOF
     #!/bin/bash
     apt-get update
-    apt-get install -y python3 python3-pip docker.io
+    apt-get install -y python3 python3-pip docker.io git
     pip3 install flask
-    echo "CloudOps Ninja Server" > index.html
+    echo "CloudOps Ninja Server - Running on $(hostname)" > /var/www/html/index.html
   EOF
-  )
-
-  tags = {
-    Name = "cloudops-web"
-  }
 }
 
-# Get latest Ubuntu AMI ID
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
+# Elastic IP Module
+module "web_eip" {
+  source = "../modules/elastic_ip"
 
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "root-device-type"
-    values = ["ebs"]
-  }
+  instance_id   = module.web_server.instance_id
+  vpc_id        = module.vpc.vpc_id
+  eip_name      = "web-eip"
+  environment   = var.environment
+  project_name  = var.project_name
 }
 
-# Elastic IP - Static public IP
-resource "aws_eip" "web" {
-  instance = aws_instance.web.id
-  domain   = "vpc"
+# Optional: Load Balancer Module
+module "load_balancer" {
+  count = var.enable_load_balancer ? 1 : 0
+  source = "../modules/load_balancer"
 
-  tags = {
-    Name = "cloudops-eip"
-  }
-
-  depends_on = [aws_internet_gateway.main]
+  vpc_id              = module.vpc.vpc_id
+  subnet_ids          = module.vpc.subnet_ids
+  security_group_ids  = [module.security_group.security_group_id]
+  alb_name            = "web-alb"
+  environment         = var.environment
+  project_name        = var.project_name
+  load_balancer_type  = "application"
 }
 
-# Output - Show results after terraform apply
-output "instance_public_ip" {
-  description = "Public IP of the web server"
-  value       = aws_eip.web.public_ip
-}
-
-output "instance_dns" {
-  description = "Public DNS of the web server"
-  value       = aws_instance.web.public_dns
-}
