@@ -13,8 +13,14 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from health_check import HealthCheck
+from logger import configure_logging, get_logger, RequestLogger, log_authentication, log_database_operation, log_deployment, log_health_check_result
 
 app = Flask(__name__)
+
+# Configure logging
+configure_logging(app, log_file='logs/cloudops.log')
+app_logger = get_logger(__name__)
+request_logger = RequestLogger(app)
 
 # Secret key for sessions
 app.secret_key = 'dev-secret-key-change-in-production'
@@ -114,7 +120,11 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
             login_user(user)
+            app_logger.info(f"User logged in: {username}")
+            log_authentication(username, True)
             return redirect(url_for('home'))
+        app_logger.warning(f"Failed login attempt for user: {username}")
+        log_authentication(username, False, "Invalid credentials")
         flash('Invalid username or password')
     return '''
     <!DOCTYPE html>
@@ -143,7 +153,9 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    username = current_user.username
     logout_user()
+    app_logger.info(f"User logged out: {username}")
     return redirect(url_for('login'))
 
 # ==================== ROUTES ====================
@@ -264,8 +276,12 @@ def api_health():
     - External service dependencies
     - Application status
     """
+    app_logger.debug("Health check initiated")
     health_checker = HealthCheck(db=db)
     health_report = health_checker.perform_all_checks()
+    
+    # Log health check result
+    log_health_check_result(health_report['status'], health_report['summary'])
     
     # Return appropriate HTTP status based on health
     http_status = 200 if health_report['status'] == 'healthy' else (503 if health_report['status'] == 'unhealthy' else 200)
@@ -350,7 +366,10 @@ cloudops_gcp_memory_percent {GCP_MEMORY_PERCENT._value}
 def deploy(cloud, version):
     """Simulate a deployment"""
     if cloud not in ["aws", "gcp"]:
+        app_logger.error(f"Deployment failed: Invalid cloud provider {cloud}")
         return jsonify({"error": "Invalid cloud"}), 400
+    
+    app_logger.info(f"Deployment initiated: {cloud} v{version} by user {current_user.username}")
     
     new_deployment = Deployment(cloud=cloud, version=version, status='success')
     db.session.add(new_deployment)
@@ -365,6 +384,8 @@ def deploy(cloud, version):
         "timestamp": new_deployment.timestamp.isoformat(),
         "status": new_deployment.status
     }
+    
+    log_deployment(cloud, version, 'success')
     
     return jsonify({
         "message": f"Deployed {version} to {cloud}",
@@ -382,11 +403,13 @@ def metrics():
 
 @app.errorhandler(404)
 def not_found(error):
+    app_logger.warning(f"404 Not Found: {request.path}")
     return jsonify({"error": "Not found"}), 404
 
 
 @app.errorhandler(500)
 def server_error(error):
+    app_logger.error(f"500 Internal Server Error: {str(error)}", exc_info=True)
     return jsonify({"error": "Internal server error"}), 500
 
 
