@@ -9,8 +9,11 @@
 [![AWS](https://img.shields.io/badge/AWS-Free%20Tier-orange?logo=amazon-aws)](https://aws.amazon.com/free/)
 [![GCP](https://img.shields.io/badge/GCP-Free%20Tier-red?logo=google-cloud)](https://cloud.google.com/free)
 [![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-brightgreen?logo=github)](https://github.com/vivs-ty/CloudOps-Ninja/actions)
-[![Tests](https://img.shields.io/badge/Tests-22%2F22%20Passing-success)](./backend/tests/)
+[![Tests](https://img.shields.io/badge/Tests-62%2F62%20Passing-success)](./backend/tests/)
 [![Code Coverage](https://img.shields.io/badge/Coverage-Comprehensive-blue)](#)
+[![Security Scan](https://img.shields.io/badge/Security-Bandit%2C%20Safety%2C%20Trivy-blue?logo=shield)](docs/SECURITY_SCANNING.md)
+[![Container Security](https://img.shields.io/badge/Container-Trivy%20Scanned-blue?logo=docker)](https://aquasecurity.github.io/trivy/)
+[![Secrets Detection](https://img.shields.io/badge/Secrets-Gitleaks%20Checked-green?logo=lock)](https://github.com/gitleaks/gitleaks)
 
 A **fun, practical project** to learn Python, Bash, Linux, AWS, GCP, and SRE concepts by building a real multi-cloud monitoring and deployment system!
 

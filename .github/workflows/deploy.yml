@@ -48,12 +48,45 @@ jobs:
           python -m pytest tests/ -v --tb=short --junit-xml=test-results.xml
           echo "✅ All tests passed"
 
+      - name: Security Scan: Bandit (Python Security)
+        run: |
+          python -m pip install bandit[toml]
+          bandit -r backend/ -f json -o bandit-report.json || true
+          echo "✅ Bandit security scan completed"
+
+      - name: Security Scan: Safety (Dependency Vulnerabilities)
+        run: |
+          python -m pip install safety
+          safety check --file backend/requirements.txt --json > safety-report.json || true
+          echo "✅ Safety dependency scan completed"
+
+      - name: Security Scan: CodeQL Analysis (if available)
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+        continue-on-error: true
+
+      - name: Security Scan: Secrets Detection (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          config-path: .gitleaks.toml
+        continue-on-error: true
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: backend/test-results.xml
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
 
       - name: Validate Terraform syntax
         run: |
@@ -129,6 +162,22 @@ jobs:
           echo "🐳 Docker image built successfully"
           echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           echo "Tags: ${{ steps.meta.outputs.tags }}"
+
+      - name: Security Scan: Trivy (Container Image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          scan-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Upload Trivy scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
 
   # STAGE 3: Infrastructure Planning (Preview)
   terraform-plan:
@@ -231,11 +280,42 @@ jobs:
           name: test-results
           path: reports/
 
+      - name: Download security reports
+        uses: actions/download-artifact@v4
+        with:
+          name: security-reports
+          path: reports/
+        continue-on-error: true
+
+      - name: Security Scan Summary
+        run: |
+          echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Bandit results
+          if [ -f "reports/bandit-report.json" ]; then
+            HIGH=$(jq '.results | length' reports/bandit-report.json 2>/dev/null || echo "0")
+            echo "- 🛡️ **Bandit (Python Security)**: $HIGH issues found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 🛡️ **Bandit (Python Security)**: Not run" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Safety results
+          if [ -f "reports/safety-report.json" ]; then
+            VULNS=$(jq 'length' reports/safety-report.json 2>/dev/null || echo "0")
+            echo "- 📦 **Safety (Dependencies)**: $VULNS vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 📦 **Safety (Dependencies)**: Not run" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
       - name: Summary Report
         run: |
           echo "## 📊 CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Validation & Testing: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔒 Security Scanning: Completed" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Docker Build: Completed" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Infrastructure Planning: Generated" >> $GITHUB_STEP_SUMMARY
           echo "- 📦 Image: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
@@ -244,3 +324,4 @@ jobs:
           echo "- Monitor deployment status" >> $GITHUB_STEP_SUMMARY
           echo "- View Docker image: \`docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Access dashboard: Check deployment environment URL" >> $GITHUB_STEP_SUMMARY
+          echo "- Review security scan results above" >> $GITHUB_STEP_SUMMARY

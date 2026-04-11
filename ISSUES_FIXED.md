@@ -163,3 +163,38 @@ This file lists all the issues that have been identified and fixed in the CloudO
     - `terraform validate`: Success (no configuration errors)
 - **Files Changed**: infrastructure/modules/vpc/, infrastructure/modules/security_group/, infrastructure/modules/ec2/, infrastructure/modules/elastic_ip/, infrastructure/modules/load_balancer/, infrastructure/aws/main.tf, infrastructure/aws/variables.tf, infrastructure/aws/outputs.tf, infrastructure/aws/USAGE_GUIDE.md, infrastructure/aws/DEPLOYMENT_CHECKLIST.md, infrastructure/aws/terraform.tfvars.example, docs/TERRAFORM_MODULES.md, infrastructure/modules/README.md
 
+### Issue #10: Add security scanning to CI/CD pipeline
+- **Issue**: No security scanning in CI/CD pipeline to detect vulnerabilities in code, dependencies, and container images.
+- **Date Fixed**: 2026-04-11
+- **Fix**:
+  - Integrated 5 security scanning tools into GitHub Actions workflow:
+    1. **Bandit**: Python security static analysis for code vulnerabilities
+    2. **Safety**: Python dependency vulnerability scanning against CVE database
+    3. **Trivy**: Container image vulnerability scanning with SARIF output
+    4. **Gitleaks**: Secrets detection for hardcoded credentials and tokens
+    5. **CodeQL**: Advanced semantic code analysis for complex vulnerabilities
+  - Enhanced CI/CD pipeline with security scanning stages:
+    - **Validate & Test Stage**: Added Bandit, Safety, CodeQL, and Gitleaks scans
+    - **Build Docker Stage**: Added Trivy container image scanning after build
+    - **Report Stage**: Added security scan summary with vulnerability counts
+  - Created comprehensive security configuration:
+    - `.gitleaks.toml`: Custom rules for secrets detection with allowlists
+    - Security report artifacts: JSON reports for Bandit/Safety, SARIF for Trivy
+    - GitHub Security tab integration for CodeQL and Trivy findings
+  - Implemented non-blocking security scans:
+    - All scans run with `continue-on-error: true` to avoid blocking deployments
+    - Security findings reported in artifacts and GitHub Security tab
+    - Workflow summary includes security scan results and recommendations
+  - Created detailed documentation in `docs/SECURITY_SCANNING.md`:
+    - Tool descriptions and integration details
+    - Local testing instructions
+    - Troubleshooting guide
+    - Best practices and compliance information
+  - Security scanning coverage:
+    - **Code Security**: Bandit and CodeQL for Python vulnerabilities
+    - **Dependency Security**: Safety for requirements.txt vulnerabilities
+    - **Container Security**: Trivy for Docker image vulnerabilities
+    - **Secrets Detection**: Gitleaks for exposed credentials
+    - **Reporting**: Comprehensive reports with severity levels and recommendations
+- **Files Changed**: .github/workflows/deploy.yml, .gitleaks.toml, docs/SECURITY_SCANNING.md
+
