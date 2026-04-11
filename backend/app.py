@@ -12,6 +12,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from health_check import HealthCheck
 
 app = Flask(__name__)
 
@@ -216,6 +217,7 @@ def home():
             <hr style="margin-top: 30px; border: 1px solid #444;">
             <h3>🔗 API Endpoints (Learn our API):</h3>
             <div class="api-link"><a href="/api/status">→ GET /api/status - System health</a></div>
+            <div class="api-link"><a href="/api/health">→ GET /api/health - Comprehensive health check</a></div>
             <div class="api-link"><a href="/api/servers">→ GET /api/servers - Cloud stats</a></div>
             <div class="api-link"><a href="/api/deployments">→ GET /api/deployments - Deployment history</a></div>
             <div class="api-link"><a href="/api/metrics">→ GET /api/metrics - Prometheus metrics</a></div>
@@ -250,6 +252,25 @@ def api_status():
         "uptime_percentage": 99.92,
         "message": "CloudOps Ninja is running! 🥷"
     })
+
+
+@app.route('/api/health')
+def api_health():
+    """Comprehensive health check endpoint
+    
+    Returns detailed health information about:
+    - Database connectivity
+    - System resources (CPU, memory, disk)
+    - External service dependencies
+    - Application status
+    """
+    health_checker = HealthCheck(db=db)
+    health_report = health_checker.perform_all_checks()
+    
+    # Return appropriate HTTP status based on health
+    http_status = 200 if health_report['status'] == 'healthy' else (503 if health_report['status'] == 'unhealthy' else 200)
+    
+    return jsonify(health_report), http_status
 
 
 @app.route('/api/servers')

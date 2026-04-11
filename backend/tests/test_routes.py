@@ -90,3 +90,76 @@ def test_logout(authenticated_client):
     """Test logout functionality"""
     response = authenticated_client.get('/logout')
     assert response.status_code == 302  # Redirect to login
+
+
+def test_api_health_check(client):
+    """Test comprehensive health check endpoint"""
+    response = client.get('/api/health')
+    assert response.status_code in [200, 503]
+    data = json.loads(response.data)
+    
+    # Verify health check structure
+    assert 'status' in data
+    assert data['status'] in ['healthy', 'degraded', 'unhealthy']
+    assert 'timestamp' in data
+    assert 'checks' in data
+    assert 'summary' in data
+
+
+def test_api_health_check_includes_database_check(client):
+    """Test health check includes database connectivity check"""
+    response = client.get('/api/health')
+    assert response.status_code in [200, 503]
+    data = json.loads(response.data)
+    
+    assert 'database' in data['checks']
+    assert 'status' in data['checks']['database']
+
+
+def test_api_health_check_includes_system_resources(client):
+    """Test health check includes system resources check"""
+    response = client.get('/api/health')
+    assert response.status_code in [200, 503]
+    data = json.loads(response.data)
+    
+    assert 'system_resources' in data['checks']
+    system_check = data['checks']['system_resources']
+    assert 'cpu' in system_check
+    assert 'memory' in system_check
+    assert 'disk' in system_check
+    assert 'usage_percent' in system_check['cpu']
+    assert 'usage_percent' in system_check['memory']
+    assert 'usage_percent' in system_check['disk']
+
+
+def test_api_health_check_includes_external_services(client):
+    """Test health check includes external services check"""
+    response = client.get('/api/health')
+    assert response.status_code in [200, 503]
+    data = json.loads(response.data)
+    
+    assert 'external_services' in data['checks']
+    assert 'services' in data['checks']['external_services']
+
+
+def test_api_health_check_includes_application_status(client):
+    """Test health check includes application status check"""
+    response = client.get('/api/health')
+    assert response.status_code in [200, 503]
+    data = json.loads(response.data)
+    
+    assert 'application' in data['checks']
+    assert 'aws_server' in data['checks']['application']
+    assert 'gcp_server' in data['checks']['application']
+
+
+def test_api_health_check_summary(client):
+    """Test health check includes summary statistics"""
+    response = client.get('/api/health')
+    assert response.status_code in [200, 503]
+    data = json.loads(response.data)
+    
+    summary = data['summary']
+    assert 'total_checks' in summary
+    assert 'healthy' in summary
+    assert summary['total_checks'] == 4  # Database, system, external, application
