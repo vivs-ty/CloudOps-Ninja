@@ -14,6 +14,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from health_check import HealthCheck
 from logger import configure_logging, get_logger, RequestLogger, log_authentication, log_database_operation, log_deployment, log_health_check_result
+from database_backup import DatabaseBackup
+from pathlib import Path
 
 app = Flask(__name__)
 
@@ -397,6 +399,232 @@ def deploy(cloud, version):
 def metrics():
     """Prometheus metrics endpoint for scraping"""
     return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
+
+# ==================== DATABASE BACKUP/RESTORE ROUTES ====================
+
+@app.route('/api/database/backups', methods=['GET'])
+@login_required
+def list_backups():
+    """List all database backups"""
+    try:
+        backup_util = DatabaseBackup()
+        backups = backup_util.list_backups()
+
+        log_database_operation('list_backups', 'success', user=current_user.username)
+        return jsonify({
+            'backups': backups,
+            'total': len(backups)
+        }), 200
+
+    except Exception as e:
+        app_logger.error(f"Failed to list backups: {e}")
+        log_database_operation('list_backups', 'error', error=str(e), user=current_user.username)
+        return jsonify({'error': 'Failed to list backups'}), 500
+
+
+@app.route('/api/database/backup', methods=['POST'])
+@login_required
+def create_backup():
+    """Create a new database backup"""
+    try:
+        data = request.get_json() or {}
+        name = data.get('name')
+        compress = data.get('compress', True)
+
+        backup_util = DatabaseBackup()
+        backup_path = backup_util.create_backup(name=name, compress=compress)
+
+        log_database_operation('create_backup', 'success',
+                             details={'backup_path': backup_path, 'compressed': compress},
+                             user=current_user.username)
+
+        return jsonify({
+            'message': 'Backup created successfully',
+            'backup_path': backup_path,
+            'compressed': compress
+        }), 201
+
+    except Exception as e:
+        app_logger.error(f"Failed to create backup: {e}")
+        log_database_operation('create_backup', 'error', error=str(e), user=current_user.username)
+        return jsonify({'error': 'Failed to create backup'}), 500
+
+
+@app.route('/api/database/restore', methods=['POST'])
+@login_required
+def restore_backup():
+    """Restore database from backup"""
+    try:
+        data = request.get_json()
+        if not data or 'backup_name' not in data:
+            return jsonify({'error': 'backup_name is required'}), 400
+
+        backup_name = data['backup_name']
+        create_backup_first = data.get('create_backup_first', True)
+
+        backup_util = DatabaseBackup()
+
+        # Validate backup exists and is valid
+        is_valid, message = backup_util.validate_backup(backup_name)
+        if not is_valid:
+            return jsonify({'error': f'Invalid backup: {message}'}), 400
+
+        # Perform restore
+        success = backup_util.restore_backup(backup_name, create_backup_first)
+
+        if success:
+            log_database_operation('restore_backup', 'success',
+                                 details={'backup_name': backup_name, 'pre_backup_created': create_backup_first},
+                                 user=current_user.username)
+
+            return jsonify({
+                'message': 'Database restored successfully',
+                'backup_name': backup_name,
+                'pre_backup_created': create_backup_first
+            }), 200
+        else:
+            raise Exception("Restore operation failed")
+
+    except Exception as e:
+        app_logger.error(f"Failed to restore backup: {e}")
+        log_database_operation('restore_backup', 'error', error=str(e), user=current_user.username)
+        return jsonify({'error': 'Failed to restore backup'}), 500
+
+
+@app.route('/api/database/export', methods=['GET'])
+@login_required
+def export_database():
+    """Export database data as JSON"""
+    try:
+        tables = request.args.getlist('tables')  # Optional table filter
+
+        backup_util = DatabaseBackup()
+        export_data = backup_util.export_data(tables if tables else None)
+
+        log_database_operation('export_database', 'success',
+                             details={'tables_exported': list(export_data['tables'].keys())},
+                             user=current_user.username)
+
+        return jsonify({
+            'message': 'Database exported successfully',
+            'data': export_data
+        }), 200
+
+    except Exception as e:
+        app_logger.error(f"Failed to export database: {e}")
+        log_database_operation('export_database', 'error', error=str(e), user=current_user.username)
+        return jsonify({'error': 'Failed to export database'}), 500
+
+
+@app.route('/api/database/import', methods=['POST'])
+@login_required
+def import_database():
+    """Import database data from JSON"""
+    try:
+        data = request.get_json()
+        if not data or 'data' not in data:
+            return jsonify({'error': 'data field is required'}), 400
+
+        import_data = data['data']
+        mode = data.get('mode', 'replace')  # 'replace' or 'append'
+
+        if mode not in ['replace', 'append']:
+            return jsonify({'error': 'mode must be "replace" or "append"'}), 400
+
+        backup_util = DatabaseBackup()
+        success = backup_util.import_data(import_data, mode)
+
+        if success:
+            log_database_operation('import_database', 'success',
+                                 details={'mode': mode, 'tables_imported': list(import_data.get('tables', {}).keys())},
+                                 user=current_user.username)
+
+            return jsonify({
+                'message': 'Database imported successfully',
+                'mode': mode,
+                'tables_imported': list(import_data.get('tables', {}).keys())
+            }), 200
+        else:
+            raise Exception("Import operation failed")
+
+    except Exception as e:
+        app_logger.error(f"Failed to import database: {e}")
+        log_database_operation('import_database', 'error', error=str(e), user=current_user.username)
+        return jsonify({'error': 'Failed to import database'}), 500
+
+
+@app.route('/api/database/cleanup', methods=['POST'])
+@login_required
+def cleanup_backups():
+    """Clean up old database backups"""
+    try:
+        data = request.get_json() or {}
+        keep_count = data.get('keep_count', 10)
+
+        if keep_count < 1:
+            return jsonify({'error': 'keep_count must be at least 1'}), 400
+
+        backup_util = DatabaseBackup()
+        deleted_count = backup_util.cleanup_old_backups(keep_count)
+
+        log_database_operation('cleanup_backups', 'success',
+                             details={'deleted_count': deleted_count, 'keep_count': keep_count},
+                             user=current_user.username)
+
+        return jsonify({
+            'message': f'Cleanup completed: {deleted_count} old backups deleted',
+            'deleted_count': deleted_count,
+            'keep_count': keep_count
+        }), 200
+
+    except Exception as e:
+        app_logger.error(f"Failed to cleanup backups: {e}")
+        log_database_operation('cleanup_backups', 'error', error=str(e), user=current_user.username)
+        return jsonify({'error': 'Failed to cleanup backups'}), 500
+
+
+@app.route('/api/database/status', methods=['GET'])
+@login_required
+def database_status():
+    """Get database status and information"""
+    try:
+        backup_util = DatabaseBackup()
+
+        # Get database file info
+        db_path = Path(backup_util.db_path)
+        db_info = {}
+        if db_path.exists():
+            stat = db_path.stat()
+            db_info = {
+                'path': str(db_path),
+                'size': stat.st_size,
+                'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                'exists': True
+            }
+        else:
+            db_info = {
+                'path': str(db_path),
+                'exists': False
+            }
+
+        # Get backup information
+        backups = backup_util.list_backups()
+
+        log_database_operation('database_status', 'success', user=current_user.username)
+
+        return jsonify({
+            'database': db_info,
+            'backups': {
+                'total': len(backups),
+                'recent': backups[:5] if backups else []  # Show 5 most recent
+            }
+        }), 200
+
+    except Exception as e:
+        app_logger.error(f"Failed to get database status: {e}")
+        log_database_operation('database_status', 'error', error=str(e), user=current_user.username)
+        return jsonify({'error': 'Failed to get database status'}), 500
 
 
 # ==================== ERROR HANDLERS ====================
