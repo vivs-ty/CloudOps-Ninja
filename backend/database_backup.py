@@ -112,6 +112,10 @@ class DatabaseBackup:
         if not backup_path.exists():
             raise FileNotFoundError(f"Backup file not found: {backup_path}")
 
+        is_valid, validation_message = self.validate_backup(backup_name)
+        if not is_valid:
+            raise ValueError(f"Backup validation failed before restore: {validation_message}")
+
         try:
             # Create a pre-restore backup if requested
             if create_backup_first:
@@ -297,10 +301,19 @@ class DatabaseBackup:
                 with open(backup_path, 'rb') as f:
                     header = f.read(16)
 
+            if backup_name.endswith('.gz'):
+                with gzip.open(backup_path, 'rb') as f:
+                    header = f.read(16)
+            else:
+                with open(backup_path, 'rb') as f:
+                    header = f.read(16)
+
             if not header.startswith(b'SQLite format 3'):
                 return False, "File is not a valid SQLite database"
 
             return True, "Backup file is valid"
 
+        except gzip.BadGzipFile as e:
+            return False, f"Backup validation failed: invalid gzip file ({e})"
         except Exception as e:
             return False, f"Backup validation failed: {e}"
