@@ -173,7 +173,6 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
         continue-on-error: true
-        continue-on-error: true
 
       - name: Upload Trivy scan results
         if: github.event_name != 'pull_request' && always()
