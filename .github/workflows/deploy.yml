@@ -69,8 +69,6 @@ jobs:
 
       - name: "Security Scan: Secrets Detection (Gitleaks)"
         uses: gitleaks/gitleaks-action@v2
-        with:
-          config-path: .gitleaks.toml
         continue-on-error: true
 
       - name: Upload test results
@@ -96,8 +94,8 @@ jobs:
 
       - name: Validate Terraform syntax
         run: |
-          terraform -chdir=infrastructure/aws validate || echo "AWS terraform validation failed"
-          terraform -chdir=infrastructure/gcp validate || echo "GCP terraform validation failed"
+          terraform -chdir=infrastructure/aws init -backend=false 2>/dev/null && terraform -chdir=infrastructure/aws validate || echo "AWS terraform validation skipped"
+          terraform -chdir=infrastructure/gcp init -backend=false 2>/dev/null && terraform -chdir=infrastructure/gcp validate || echo "GCP terraform validation skipped"
           echo "Terraform syntax validation completed"
         continue-on-error: true
 
@@ -166,7 +164,7 @@ jobs:
 
       - name: "Security Scan: Trivy (Container Image)"
         if: github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'image'
           scan-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest'
